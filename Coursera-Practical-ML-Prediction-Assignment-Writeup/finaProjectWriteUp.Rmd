@@ -1,0 +1,144 @@
+---
+title: "Coursera Practical Machine Learning Final Project"
+author: "zahirul islam"
+date: "january 11, 2024"
+output: html_document
+---
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+# Data Processing
+We are going to spilt the training data into a training set *df.train* and a testing set *df.test* by 6:4 ratio. The original test set will only be using for generating the quiz result.
+
+### Download the data from the provided URL, and load it into R
+```{r, cache=TRUE, message=FALSE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rattle)
+
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainFile <- "pml-trainging.csv"
+testFile <- "pml-testing.csv"
+if (!file.exists(trainFile)){download.file(trainUrl, trainFile, method = "curl")}
+if (!file.exists(testFile)){download.file(testUrl, testFile, method = "curl")}
+
+training <- read.csv(trainFile)
+testing <- read.csv(testFile)
+dim(training)
+```
+
+### Data Partition
+```{r, cache=TRUE, message=FALSE}
+inTrain <- createDataPartition(training$classe, p = .6, list = FALSE)
+df.train <- training[inTrain,]
+df.test <- training[-inTrain,]
+
+dim(df.train)
+dim(df.test)
+```
+We total have 160 variables. However, not all variables are relevent in the prediction. Therefore, we will have to perform data cleaning.
+
+### Data Cleaning
+We are going to remove the NA's, the Near Zero Variance(NZR), and the ID variables.
+```{r, cache=TRUE, message=FALSE}
+# remove columns only contain NA's
+df.train <- df.train[, colSums(is.na(df.train)) == 0]
+df.test <- df.test[, colSums(is.na(df.test)) == 0]
+# remove the Near Zero Variance columns
+NZV <- nearZeroVar(df.train)
+df.train <- df.train[,-NZV]
+df.test <- df.test[,-NZV]
+# remove ID variables
+df.train <- df.train[,-(1:5)]
+df.test <- df.test[,-(1:5)]
+# check dimention
+dim(df.train)
+dim(df.test)
+```
+After data cleaning, we will have 54 variables for the analysis.
+
+# Model Building and Cross Validation
+We will build 3 models using Random Forest, Generalized Boosted Model, and Decision Tree. The model with the highest accuracy rate will be used to answer the quiz questions.
+
+For Cross Validation, we will be using 5-folds Cross Validation.
+
+### Random Forest
+First of all, we will build a Random Forest model and perform a prediction.
+```{r, cache=TRUE, message=FALSE}
+mod.rf <- train(classe ~., data = df.train, method = "rf",
+                trControl = trainControl("cv", number = 5))
+mod.rf$finalModel
+
+
+```
+
+
+#### Prediction with Random Forest Model
+```{r, cache=TRUE, message=FALSE}
+pred.rf <- predict(mod.rf, df.test)
+result.rf <- confusionMatrix(pred.rf, df.test$classe)
+accu.rf <- result.rf$overall[1]
+oob.rf <- 1 - result.rf$overall[1]
+
+```
+The accuracy rate of the Random Forest Model is `r round(accu.rf, 3)`, and the out of sample error is `r round(oob.rf, 3)*100`%.
+
+
+
+### Generalized Boosted Model (GBM)
+Second, we will build a Generalized Boosted Model.
+```{r, cache=TRUE, message=FALSE}
+mod.gbm <- train(classe ~., data = df.train, method = "gbm", verbose = FALSE,
+                 trControl = trainControl(method = "cv", number = 5))
+mod.gbm
+
+```
+
+#### Prediction with Generalized Boosted Model
+```{r, cache=TRUE, message=FALSE}
+pred.gbm <- predict(mod.gbm, df.test)
+result.gbm <- confusionMatrix(pred.gbm, df.test$classe)
+accu.gbm <- result.gbm$overall[1]
+oob.gbm <- 1 - result.gbm$overall[1]
+```
+The accuracy rate of the Generalized Boosted Model is `r round(accu.gbm, 3)`, and the out of sample error is `r round(oob.gbm, 3)*100`%.
+
+
+### Decision Tree
+```{r, cache=TRUE, message=FALSE}
+mod.rpart <- train(classe ~., data = df.train, method = "rpart")
+mod.rpart
+```
+
+#### Prediction with Decision Tree model
+```{r, cache=TRUE, message=FALSE}
+pred.rpart <- predict(mod.rpart, df.test)
+result.rpart <- confusionMatrix(pred.rpart, df.test$classe)
+accu.rpart <- result.rpart$overall[1]
+oob.rpart <- 1 - result.rpart$overall[1]
+```
+The accuracy rate of the Decision Tree Model is `r round(accu.rpart, 3)`, and the out of sample error is `r round(oob.rpart, 3)*100`%.
+
+# Result
+From the above result we can see that the Random Forest Model has the highest accuracy rate (`r round(result.rf$overall[1], 3)`), so we will use this model to answer the quiz questions. The result is shown below.
+
+```{r, cache=TRUE}
+pred.quiz <- predict(mod.rf, testing)
+pred.quiz
+```
