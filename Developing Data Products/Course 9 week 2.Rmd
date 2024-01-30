@@ -1,7 +1,7 @@
 ---
 title: 'Peer-graded Assignment: R Markdown and Leaflet'
 author: "zahirul islam"
-date: "January 29, 2024, 2018"
+date: "January 29, 2024"
 output: html_document
 ---
 
